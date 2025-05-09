@@ -1,0 +1,50 @@
+teams:
+  parent_team: [team_name]
+  description: null
+  project: [project]
+  members: null
+  repositories: null
+  repository_permissions: read
+  
+  child_teams:
+    - name: '[team_name]-developers'
+      description: Developers for [project]
+      members: null
+      repositories: null
+      repository_permissions: write
+
+    - name: '[team_name]-testers'
+      description: Testers for [project]
+      members: null
+      repositories: null
+      repository_permissions: triage
+
+    - name: '[team_name]-reviewers'
+      description: Code reviewers for [project]
+      members: null
+      repositories: null
+      repository_permissions: write
+      
+    - name: '[team_name]-release-managers'
+      description: Staging/Production release management for [project]
+      members: null
+      repositories: null
+      repository_permissions: maintain
+
+    - name: '[team_name]-operations'
+      description: Operations for [project]
+      members: null
+      repositories: null
+      repository_permissions: maintain
+
+    - name: '[team_name]-security'
+      description: Security for [project]
+      members: null
+      repositories: null
+      repository_permissions: admin
+
+    - name: '[team_name]-project-owners'
+      description: Owners for [project]
+      members: null
+      repositories: null
+      repository_permissions: admin
