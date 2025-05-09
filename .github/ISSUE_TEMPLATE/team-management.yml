@@ -1,0 +1,81 @@
+name: Team Management
+description: Create, update or remove GitHub teams, memenbers or repositories access
+title: "[Team Management] ""
+labels: ["team-management"]
+assignees:
+  - "octocat"
+
+body:
+  - type: dropdown
+    id: action
+    attributes:
+      label: Action
+      description: What action would you like to perform?
+      options:
+        - create
+        - Update
+        - Remove
+    validation:
+      required: true
+
+  - type: input
+    id: team_name
+    attributes:
+      label: Team Name
+      description: Name of the parent team
+      placeholder: example-team
+    validation:
+      required: true
+
+  - type: input
+    id: project
+    attributes:
+      label: Project Name
+      description: TName of the project this team is for (Only required for creation)
+      placeholder: Example Project
+    validation:
+      required: false
+
+  - type: input
+    id: team_description
+    attributes:
+      label: Team Description
+      description: Description of the parent team (Only required for creation)
+      placeholder: Team responsible for the example project
+    validation:
+      required: false
+
+  - type: textarea
+    id: members
+    attributes:
+      label: Members
+      description: List of members to update/remove followed by kist of child teams to add users too all will update/remove the users to all teams (format @username (developers, testers) or @ username (all))
+      placeholder: "
+        - @John-Doe (developers, testers)
+        - @Jane-Doe (all)
+        - @octocat (project-owners)
+    validation:
+      required: false
+
+  - type: textarea
+    id : repositories
+    attributes:
+      label: Repositories
+      description: List of repositories to update/remove
+      placeholder: 
+        - repo-1
+        - repo-2
+        - repo-3
+    validation:
+      required: false
+
+  - type: textarea
+    id: child_teams
+    attributes:
+      label: Child Teamsßßß
+      description: List of child teams to update/remove ( Format - child-team1:descritpion:repository_permissons) repository_permissons to be on of read (default), write , triage, maintain or admin
+      placeholder: 
+        - child-team1:Team respomsible for requirment:read
+        - child-team2:Team responsible for requirment:write
+    validation:
+      required: false

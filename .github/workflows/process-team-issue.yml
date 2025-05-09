@@ -1,0 +1,60 @@
+name: Process Team Management Issue
+
+on:
+    issues:
+        types: [opened, edited]
+
+jobs:
+  process-team-issue:
+    if: contains(github.event.issue.labels, 'team-management')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install PyYAML requests
+
+      - name: Process team issues
+        id: process-issue
+        run: python scripts/process_team_issue.py
+        env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Personal access token for higher privileges
+            GITHUB_ORG: ${{github.repository_owner}}
+            REPO: ${{ github.repository }}
+            ISSUE_NUMBER: ${{ github.event.issue.number }}
+            ISSUE_BODY: ${{ github.event.issue.body }}
+            ISSUE_TITLE: ${{ github.event.issue.title }}
+            
+      - name: Commit changes if any
+        run: |
+          git config --local user.name "GitHub Actions"
+          git config --local user.email "actions@githbu.com"
+
+          echo "Checking for chnages in teams directory"
+          git add teams/
+
+          # Show ehat files were modified
+          git status --porcelain
+
+          # Force detection of chnages even if whitespace or formatting is similar
+          CHANGES=$(git status --procelain teams/)
+          if [ -z "$CHANGES" ]; then
+          echo "No changes detected in teams directory"
+            exit 0
+          fi
+
+          echo "Changes detected, committing..."
+          git commit -m "Update team configuration from issue #${{ github.event.issue.number }}"
+          git push
