@@ -1,17 +1,26 @@
 name: Process Team Management Issue
 
 on:
-    issues:
-        types: [opened, edited]
+  issues:
+    types: [opened, edited]
 
 jobs:
   process-team-issue:
-    if: contains(github.event.issue.labels, 'team-management')
+    if: contains(github.event.issue.labels.*.name, 'team-management')
     runs-on: ubuntu-latest
     permissions:
-      issues: write
       contents: write
+      issues: write
+    environment: 
+      name: test-env
     steps:
+      - uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -21,40 +30,40 @@ jobs:
           python-version: '3.10'
           cache: 'pip'
 
-      - name: install dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install PyYAML requests
 
-      - name: Process team issues
+      - name: Process team issue
         id: process-issue
         run: python scripts/process_team_issue.py
         env:
-            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Personal access token for higher privileges
-            GITHUB_ORG: ${{github.repository_owner}}
-            REPO: ${{ github.repository }}
-            ISSUE_NUMBER: ${{ github.event.issue.number }}
-            ISSUE_BODY: ${{ github.event.issue.body }}
-            ISSUE_TITLE: ${{ github.event.issue.title }}
-            
-      - name: Commit changes if any
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token  }}
+          GITHUB_ORG: ${{ github.repository_owner }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ toJSON(github.event.issue.body) }}
+          ISSUE_TITLE: ${{ toJSON(github.event.issue.title) }}
+          REPO: ${{ github.repository }}
+
+      - name: Commit changes if necessary
         run: |
-          git config --local user.name "GitHub Actions"
-          git config --local user.email "actions@githbu.com"
-
-          echo "Checking for chnages in teams directory"
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          echo "Checking for changes in teams directory"
           git add teams/
-
-          # Show ehat files were modified
+          
+          # Show what files were modified
           git status --porcelain
-
-          # Force detection of chnages even if whitespace or formatting is similar
-          CHANGES=$(git status --procelain teams/)
+          
+          # Force detection of changes even if whitespace or formatting is similar
+          CHANGES=$(git status --porcelain teams/)
           if [ -z "$CHANGES" ]; then
-          echo "No changes detected in teams directory"
+            echo "No changes detected in teams directory"
             exit 0
           fi
-
+          
           echo "Changes detected, committing..."
           git commit -m "Update team configuration from issue #${{ github.event.issue.number }}"
           git push
