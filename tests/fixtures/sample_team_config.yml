@@ -1,0 +1,68 @@
+teams:
+  parent_team: test-team
+  description: Test Team
+  project: Test Project
+  members: 
+    - user1
+    - user2
+  repositories:
+    - repo1
+    - repo2
+  repository_permissions: read
+  child_teams:
+    - name: test-team-developers
+      description: Developers for Test Project
+      members: 
+        - user1
+      repositories:
+        - repo1
+        - repo2
+      repository_permissions: write
+    - name: test-team-testers
+      description: Testers for Test Project
+      members:
+        - user2
+      repositories:
+        - repo1
+        - repo2
+      repository_permissions: triage
+    - name: 'test-team-reviewers'
+      description: Code reviewers for Test Project
+      members: 
+        - user2
+      repositories:
+        - repo1
+        - repo2
+      repository_permissions: write
+    - name: 'test-team-release-managers'
+      description: Staging/Production release management for Test Project
+      members:
+        - user2
+      repositories:
+        - repo1
+        - repo2
+      repository_permissions: maintain
+    - name: 'test-team-operations'
+      description: Operations for Test Project
+      members:
+        - user2
+      repositories:
+        - repo1
+        - repo2
+      repository_permissions: maintain
+    - name: 'test-team-security'
+      description: Security for Test Project
+      members:
+        - user2
+      repositories:
+        - repo1
+        - repo2
+      repository_permissions: admin
+    - name: 'test-team-project-owners'
+      description: Owners for Test Project
+      members:
+        - user2
+      repositories:
+        - repo1
+        - repo2
+      repository_permissions: admin
