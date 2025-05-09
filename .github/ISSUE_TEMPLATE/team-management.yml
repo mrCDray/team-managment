@@ -1,9 +1,9 @@
 name: Team Management
-description: Create, update or remove GitHub teams, memenbers or repositories access
-title: "[Team Management] ""
+description: Create, update, or remove GitHub teams, members and repository access
+title: "[Team Management] "
 labels: ["team-management"]
 assignees:
-  - "octocat"
+  - octocat
 
 body:
   - type: dropdown
@@ -13,9 +13,9 @@ body:
       description: What action would you like to perform?
       options:
         - create
-        - Update
-        - Remove
-    validation:
+        - update
+        - remove
+    validations:
       required: true
 
   - type: input
@@ -24,58 +24,56 @@ body:
       label: Team Name
       description: Name of the parent team
       placeholder: example-team
-    validation:
+    validations:
       required: true
 
   - type: input
     id: project
     attributes:
       label: Project Name
-      description: TName of the project this team is for (Only required for creation)
+      description: Name of the project this team is for (only required for team creation, cannot be changed later)
       placeholder: Example Project
-    validation:
+    validations:
       required: false
 
-  - type: input
+  - type: textarea
     id: team_description
     attributes:
       label: Team Description
-      description: Description of the parent team (Only required for creation)
+      description: Description of the parent team (only required for team creation, cannot be changed later)
       placeholder: Team responsible for the example project
-    validation:
+    validations:
       required: false
 
   - type: textarea
     id: members
     attributes:
       label: Members
-      description: List of members to update/remove followed by kist of child teams to add users too all will update/remove the users to all teams (format @username (developers, testers) or @ username (all))
-      placeholder: "
-        - @John-Doe (developers, testers)
-        - @Jane-Doe (all)
-        - @octocat (project-owners)
-    validation:
+      description: List of members to update/remove followed by list of child teams to add the users too all will update/remove the user to all teams (format @username (developers, testers) or @username (all))
+      placeholder: |
+        - @John-Doe_pgh (developers, testers)
+        - @Jane-Doe_pgh (all)
+    validations:
       required: false
 
   - type: textarea
-    id : repositories
+    id: repositories
     attributes:
       label: Repositories
       description: List of repositories to update/remove
-      placeholder: 
-        - repo-1
-        - repo-2
-        - repo-3
-    validation:
+      placeholder: |
+        - repo1
+        - repo2
+    validations:
       required: false
 
   - type: textarea
     id: child_teams
     attributes:
-      label: Child Teamsßßß
-      description: List of child teams to update/remove ( Format - child-team1:descritpion:repository_permissons) repository_permissons to be on of read (default), write , triage, maintain or admin
-      placeholder: 
-        - child-team1:Team respomsible for requirment:read
+      label: Child Teams
+      description: List of child teams to update/remove (format - child-team1:description:repository_permissions) repository_permissions to be one of read (default), write, triage, maintain or admin 
+      placeholder: |
+        - child-team1:Team responsible for requirment:read
         - child-team2:Team responsible for requirment:write
-    validation:
+    validations:
       required: false
