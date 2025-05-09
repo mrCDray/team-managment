@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       team:
-        description: 'Team to sync ( leave empty to sync all teams)'
+        description: 'Team to sync (leave empty to sync all teams)'
         required: false
         default: ''
 
@@ -18,9 +18,19 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    environment:
+      name: test-env
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        
+      - name: Generate GitHub App Token
+        uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ vars.APP_ID }}
+          private-key: ${{ secrets.APP_KEY }}
+          owner: ${{ github.repository_owner }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -36,5 +46,5 @@ jobs:
       - name: Sync GitHub teams
         run: python scripts/sync_github_teams.py ${{ github.event.inputs.team != '' && format('--team {0}', github.event.inputs.team) || '' }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Personal access token for higher privileges
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
           GITHUB_ORG: ${{ github.repository_owner }}
