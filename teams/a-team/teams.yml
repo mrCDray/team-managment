@@ -1,0 +1,59 @@
+teams:
+  parent_team: a-team
+  description: Create the A-Team
+  project: A-Team
+  members:
+    - mrchrisdray
+  repositories:
+    - team-managment
+  repository_permissions: read
+  child_teams:
+    - name: a-team-developers
+      description: Developers for A-Team
+      members:
+        - mrchrisdray
+      repositories:
+        - team-managment
+      repository_permissions: write
+    - name: a-team-testers
+      description: Testers for A-Team
+      members:
+        - mrchrisdray
+      repositories:
+        - team-managment
+      repository_permissions: triage
+    - name: a-team-reviewers
+      description: Code reviewers for A-Team
+      members:
+        - mrchrisdray
+      repositories:
+        - team-managment
+      repository_permissions: write
+    - name: a-team-release-managers
+      description: Staging/Production release management for A-Team
+      members:
+        - mrchrisdray
+      repositories:
+        - team-managment
+      repository_permissions: maintain
+    - name: a-team-operations
+      description: Operations for A-Team
+      members:
+        - mrchrisdray
+      repositories:
+        - team-managment
+      repository_permissions: maintain
+    - name: a-team-security
+      description: Security for A-Team
+      members:
+        - mrchrisdray
+      repositories:
+        - team-managment
+      repository_permissions: admin
+    - name: a-team-project-owners
+      description: Owners for A-Team
+      members:
+        - mrchrisdray
+      repositories:
+        - team-managment
+      repository_permissions: admin
