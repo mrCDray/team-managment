@@ -13,9 +13,20 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sync_github_teams_mock = MagicMock()
 sync_github_teams_mock.sync_teams = MagicMock(return_value=(True, "Team synchronized"))
 
+# Create a mock for team_utils before importing process_team_issue
+team_utils_mock = MagicMock()
+team_utils_mock.ensure_team_name_prefix = MagicMock(
+    side_effect=lambda parent, child: f"{parent}-{child}" if not child.startswith(f"{parent}-") else child
+)
+team_utils_mock.check_user_in_org = MagicMock(return_value=True)
+team_utils_mock.check_repo_in_org = MagicMock(return_value=True)
+team_utils_mock.comment_on_issue = MagicMock(return_value=True)
+
 # Insert mocks into sys.modules
 sys.modules["sync_github_teams"] = sync_github_teams_mock
 sys.modules["scripts.sync_github_teams"] = sync_github_teams_mock  # Ensure both import paths are mocked
+sys.modules["team_utils"] = team_utils_mock
+sys.modules["scripts.team_utils"] = team_utils_mock  # Ensure both import paths are mocked
 
 # Now import the modules
 import scripts.process_team_issue as team_module
@@ -53,8 +64,8 @@ def setup_test_env(monkeypatch, tmp_path):
 
 
 @pytest.mark.integration
-@patch("scripts.process_team_issue.requests.get")
-@patch("scripts.process_team_issue.requests.post")
+@patch("scripts.team_utils.requests.get")  # Updated patch path
+@patch("scripts.team_utils.requests.post")  # Updated patch path
 def test_create_team_flow(mock_post, mock_get, setup_test_env):
     """Test the full flow of creating a team."""
     # Mock API responses
@@ -98,8 +109,8 @@ Team for integration testing
 
     # Run the process
     with (
-        patch("scripts.process_team_issue.check_user_in_org", return_value=True),
-        patch("scripts.process_team_issue.check_repo_in_org", return_value=True),
+        patch("scripts.team_utils.check_user_in_org", return_value=True),  # Updated patch path
+        patch("scripts.team_utils.check_repo_in_org", return_value=True),  # Updated patch path
         patch("scripts.process_team_issue.sync_team_with_github", return_value=(True, "Team synchronized")),
     ):
         team_module.process_team_issue()
@@ -139,8 +150,8 @@ Team for integration testing
 
 
 @pytest.mark.integration
-@patch("scripts.process_team_issue.requests.get")
-@patch("scripts.process_team_issue.requests.post")
+@patch("scripts.team_utils.requests.get")  # Updated patch path
+@patch("scripts.team_utils.requests.post")  # Updated patch path
 def test_update_team_flow(mock_post, mock_get, setup_test_env):
     """Test the full flow of updating an existing team."""
     # First create a team
@@ -189,8 +200,8 @@ Updated team description
 
     # Run the process
     with (
-        patch("scripts.process_team_issue.check_user_in_org", return_value=True),
-        patch("scripts.process_team_issue.check_repo_in_org", return_value=True),
+        patch("scripts.team_utils.check_user_in_org", return_value=True),  # Updated patch path
+        patch("scripts.team_utils.check_repo_in_org", return_value=True),  # Updated patch path
         patch("scripts.process_team_issue.sync_team_with_github", return_value=(True, "Team synchronized")),
     ):
         team_module.process_team_issue()
@@ -226,8 +237,8 @@ Updated team description
 
 
 @pytest.mark.integration
-@patch("scripts.process_team_issue.requests.get")
-@patch("scripts.process_team_issue.requests.post")
+@patch("scripts.team_utils.requests.get")  # Updated patch path
+@patch("scripts.team_utils.requests.post")  # Updated patch path
 def test_validation_error_flow(mock_post, mock_get, setup_test_env):
     """Test flow with validation errors."""
     # Set up invalid issue body (missing team name)
@@ -272,8 +283,8 @@ This will fail validation
 
 
 @pytest.mark.integration
-@patch("scripts.process_team_issue.requests.get")
-@patch("scripts.process_team_issue.requests.post")
+@patch("scripts.team_utils.requests.get")  # Updated patch path
+@patch("scripts.team_utils.requests.post")  # Updated patch path
 def test_remove_action_flow(mock_post, mock_get, setup_test_env):
     """Test the flow of removing items from a team."""
     # First create a team
@@ -344,7 +355,7 @@ remove-team
 
     # Run the process
     with (
-        patch("scripts.process_team_issue.check_user_in_org", return_value=True),
+        patch("scripts.team_utils.check_user_in_org", return_value=True),  # Updated patch path
         patch(
             "scripts.process_team_issue.parse_member_entry", side_effect=[("user1", ["all"]), ("user2", ["developers"])]
         ),
@@ -382,8 +393,8 @@ remove-team
 
 
 @pytest.mark.integration
-@patch("scripts.process_team_issue.requests.get")
-@patch("scripts.process_team_issue.requests.post")
+@patch("scripts.team_utils.requests.get")  # Updated patch path
+@patch("scripts.team_utils.requests.post")  # Updated patch path
 def test_sync_failure_flow(mock_post, mock_get, setup_test_env):
     """Test handling of sync failures in the integration flow."""
     # Create a team directory
@@ -431,8 +442,8 @@ Updated description
 
     # Run process with failing sync
     with (
-        patch("scripts.process_team_issue.check_user_in_org", return_value=True),
-        patch("scripts.process_team_issue.check_repo_in_org", return_value=True),
+        patch("scripts.team_utils.check_user_in_org", return_value=True),  # Updated patch path
+        patch("scripts.team_utils.check_repo_in_org", return_value=True),  # Updated patch path
         patch("scripts.process_team_issue.sync_team_with_github", return_value=(False, "Failed to sync team")),
     ):
         team_module.process_team_issue()
