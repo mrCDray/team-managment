@@ -6,11 +6,13 @@ import logging
 from collections import OrderedDict
 from pathlib import Path
 from typing import List, Dict, Optional, Any, Tuple
-import requests
 import yaml
 
 # Import the team sync functionality
 from sync_github_teams import sync_teams
+
+# Import utility functions from the new module
+from team_utils import ensure_team_name_prefix, check_user_in_org, check_repo_in_org, comment_on_issue
 
 
 class IndentDumper(yaml.Dumper):
@@ -129,27 +131,6 @@ def parse_issue_body(body: str) -> Dict[str, Optional[Any]]:
     return result
 
 
-def check_user_in_org(username: str) -> bool:
-    """Check if the user exists in the organization."""
-    token = os.environ.get("GITHUB_TOKEN")
-    org = os.environ.get("GITHUB_ORG")
-
-    if not org:
-        logger.error("GITHUB_ORG environment variable not set")
-        return False
-
-    url = f"https://api.github.com/orgs/{org}/members/{username}"
-    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
-
-    try:
-        response = requests.get(url, headers=headers)
-        # 204 indicates the user is a member, 404 indicates they're not
-        return response.status_code == 204
-    except Exception as e:
-        logger.error(f"Error checking if user {username} exists in org: {str(e)}")
-        return False
-
-
 def create_user_warning_issue(username: str, issue_number: int = None) -> bool:
     """Comment on the current issue about a user that doesn't exist in the organization."""
     token = os.environ.get("GITHUB_TOKEN")
@@ -192,7 +173,7 @@ def parse_member_entry(entry: str, issue_number: int = None) -> Tuple[Optional[s
     return None, None
 
 
-def parse_child_team_entry(entry: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def parse_child_team_entry(entry: str, parent_team: str = None) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """Parse a child team entry to extract team name, description, and permission."""
     # Example: - developers:Team responsible for development
     # Or: - developers
@@ -203,6 +184,10 @@ def parse_child_team_entry(entry: str) -> Tuple[Optional[str], Optional[str], Op
     description = parts[1].strip() if len(parts) > 1 else None
     # Add default repository permission
     raw_permission = parts[2].strip() if len(parts) > 2 else "pull"
+
+    # If parent_team is provided, ensure the team name has the proper prefix
+    if parent_team:
+        team_name = ensure_team_name_prefix(parent_team, team_name)
 
     # Map user-friendly permission names to GitHub API permissions using dict.get
     permission = permission_mapping.get(raw_permission, raw_permission)
@@ -259,7 +244,8 @@ def process_team_members(
                     parent_members.append(username)
                     # Add to specific child teams
                     for team_suffix in teams:
-                        child_team_name = f"{team_name}-{team_suffix}"
+                        # Handle both prefixed and non-prefixed team names
+                        child_team_name = ensure_team_name_prefix(team_name, team_suffix)
                         if child_team_name not in child_team_members:
                             child_team_members[child_team_name] = []
                         if username not in child_team_members[child_team_name]:
@@ -278,7 +264,8 @@ def process_team_members(
                     else:
                         # Add to specific child teams
                         for team_suffix in teams:
-                            child_team_name = f"{team_name}-{team_suffix}"
+                            # Handle both prefixed and non-prefixed team names
+                            child_team_name = ensure_team_name_prefix(team_name, team_suffix)
                             if child_team_name not in child_team_members:
                                 child_team_members[child_team_name] = []
                             if username not in child_team_members[child_team_name]:
@@ -315,69 +302,46 @@ def process_child_teams(
 
     # Process each child team entry
     for entry in child_teams_entries:
-        child_team_suffix, description, permission = parse_child_team_entry(entry)
-        if not child_team_suffix:
+        child_team_name, description, permission = parse_child_team_entry(entry, team_name)
+        if not child_team_name:
             logger.warning(f"Invalid child team entry: {entry}")
             continue
 
-        full_child_team_name = f"{team_name}-{child_team_suffix}"
-
         if action == "remove":
             # Remove child team if it exists
-            if full_child_team_name in existing_child_teams:
-                idx = existing_child_teams[full_child_team_name]
-                logger.info(f"Removing child team: {full_child_team_name}")
+            if child_team_name in existing_child_teams:
+                idx = existing_child_teams[child_team_name]
+                logger.info(f"Removing child team: {child_team_name}")
                 config["child_teams"].pop(idx)
                 # Update indices after removal
                 for name, index in existing_child_teams.items():
                     if index > idx:
                         existing_child_teams[name] = index - 1
-                existing_child_teams.pop(full_child_team_name)
+                existing_child_teams.pop(child_team_name)
         else:
             # Add or update child team
-            if full_child_team_name in existing_child_teams:
+            if child_team_name in existing_child_teams:
                 # Update existing child team - only update description and permission if provided
-                idx = existing_child_teams[full_child_team_name]
+                idx = existing_child_teams[child_team_name]
                 if description:  # Only update description if provided
                     config["child_teams"][idx]["description"] = description
                 # Always ensure repository_permissions is set
                 config["child_teams"][idx]["repository_permissions"] = permission
-                logger.info(f"Updated child team: {full_child_team_name}")
+                logger.info(f"Updated child team: {child_team_name}")
             else:
                 # Add new child team - preserve structure similar to existing teams
                 parent_repos = config.get("repositories", []) or []
                 child_team = {
-                    "name": full_child_team_name,
+                    "name": child_team_name,
                     "description": description,
                     "repository_permissions": permission,  # Add repository permission
                     "members": [],
                     "repositories": parent_repos.copy() if parent_repos else [],
                 }
                 config["child_teams"].append(child_team)
-                logger.info(f"Added new child team: {full_child_team_name} with permission: {permission}")
+                logger.info(f"Added new child team: {child_team_name} with permission: {permission}")
 
     return config
-
-
-def check_repo_in_org(repo_name: str) -> bool:
-    """Check if the repository exists in the organization."""
-    token = os.environ.get("GITHUB_TOKEN")
-    org = os.environ.get("GITHUB_ORG")
-
-    if not org:
-        logger.error("GITHUB_ORG environment variable not set")
-        return False
-
-    url = f"https://api.github.com/repos/{org}/{repo_name}"
-    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
-
-    try:
-        response = requests.get(url, headers=headers)
-        # 200 indicates the repository exists, 404 indicates it doesn't
-        return response.status_code == 200
-    except Exception as e:
-        logger.error(f"Error checking if repository {repo_name} exists in org: {str(e)}")
-        return False
 
 
 def create_repo_warning_issue(repo_name: str, issue_number: int = None) -> bool:
@@ -654,26 +618,6 @@ def remove_team_items(
                     )
 
     return config, None
-
-
-def comment_on_issue(repo: str, issue_number: int, message: str, token: str) -> bool:
-    """Add a comment to the issue."""
-    logger.info(f"Commenting on issue #{issue_number}")
-    url = f"https://api.github.com/repos/{repo}/issues/{issue_number}/comments"
-    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
-    data = {"body": message}
-
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        if response.status_code == 201:
-            logger.info("Successfully added comment to issue")
-            return True
-
-        logger.error(f"Failed to comment on issue: {response.status_code} - {response.text}")
-        return False
-    except Exception as e:
-        logger.error(f"Exception when commenting on issue: {str(e)}")
-        return False
 
 
 def validate_required_data(issue_data: Dict[str, Any]) -> List[str]:
