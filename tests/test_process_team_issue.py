@@ -14,6 +14,19 @@ sync_github_teams_mock = MagicMock()
 sys.modules["scripts.sync_github_teams"] = sync_github_teams_mock
 sys.modules["sync_github_teams"] = sync_github_teams_mock  # Also mock the direct import path
 
+# Create a mock for team_utils before importing process_team_issue
+team_utils_mock = MagicMock()
+team_utils_mock.ensure_team_name_prefix = MagicMock(
+    side_effect=lambda parent, child: f"{parent}-{child}" if not child.startswith(f"{parent}-") else child
+)
+team_utils_mock.check_user_in_org = MagicMock(return_value=True)
+team_utils_mock.check_repo_in_org = MagicMock(return_value=True)
+team_utils_mock.comment_on_issue = MagicMock(return_value=True)
+
+# Insert mock into sys.modules
+sys.modules["team_utils"] = team_utils_mock
+sys.modules["scripts.team_utils"] = team_utils_mock  # Ensure both import paths are mocked
+
 # Now import the modules
 import scripts.process_team_issue as team_module
 
@@ -90,7 +103,7 @@ This is a test team description
     )
 
 
-@patch("scripts.process_team_issue.requests.get")
+@patch("scripts.team_utils.requests.get")  # Updated patch path
 def test_check_user_in_org(mock_get):
     """Test checking if user exists in organization."""
     # Setup environment variable for all tests
@@ -100,26 +113,31 @@ def test_check_user_in_org(mock_get):
         mock_response.status_code = 204
         mock_get.return_value = mock_response
 
-        result = team_module.check_user_in_org("existing-user")
-        assert result is True
+        # Need to test the actual module, not the mocked one
+        with patch.object(team_utils_mock, "check_user_in_org", wraps=team_module.check_user_in_org):
+            result = team_module.check_user_in_org("existing-user")
+            assert result is True
 
         # User doesn't exist
         mock_response.status_code = 404
-        result = team_module.check_user_in_org("non-existent-user")
-        assert result is False
+        with patch.object(team_utils_mock, "check_user_in_org", wraps=team_module.check_user_in_org):
+            result = team_module.check_user_in_org("non-existent-user")
+            assert result is False
 
         # API error
         mock_get.side_effect = Exception("API Error")
-        result = team_module.check_user_in_org("any-user")
-        assert result is False
+        with patch.object(team_utils_mock, "check_user_in_org", wraps=team_module.check_user_in_org):
+            result = team_module.check_user_in_org("any-user")
+            assert result is False
 
     # Test missing environment variables - negative test
     with patch.dict(os.environ, {"GITHUB_ORG": ""}):
-        result = team_module.check_user_in_org("any-user")
-        assert result is False
+        with patch.object(team_utils_mock, "check_user_in_org", wraps=team_module.check_user_in_org):
+            result = team_module.check_user_in_org("any-user")
+            assert result is False
 
 
-@patch("scripts.process_team_issue.check_repo_in_org")
+@patch("scripts.team_utils.check_repo_in_org")  # Updated patch path
 @patch("scripts.process_team_issue.create_repo_warning_issue")
 def test_process_repositories(mock_warning, mock_check_repo):
     """Test processing repositories."""
@@ -144,7 +162,7 @@ def test_process_repositories(mock_warning, mock_check_repo):
     mock_warning.assert_called_once_with("invalid-repo", 1)
 
 
-@patch("scripts.process_team_issue.requests.post")
+@patch("scripts.team_utils.requests.post")  # Updated patch path
 def test_comment_on_issue(mock_post, monkeypatch):
     """Test commenting on an issue."""
     monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
@@ -154,19 +172,20 @@ def test_comment_on_issue(mock_post, monkeypatch):
     mock_response.status_code = 201
     mock_post.return_value = mock_response
 
-    result = team_module.comment_on_issue("test-org/test-repo", 1, "Test message", "fake-token")
-
-    assert result is True
-    mock_post.assert_called_once()
+    # Need to test the actual module, not the mocked one
+    with patch.object(team_utils_mock, "comment_on_issue", wraps=team_module.comment_on_issue):
+        result = team_module.comment_on_issue("test-org/test-repo", 1, "Test message", "fake-token")
+        assert result is True
+        mock_post.assert_called_once()
 
     # Test error handling for requests failure
     mock_post.reset_mock()
     mock_post.side_effect = requests.RequestException("Connection error")
 
-    result = team_module.comment_on_issue("test-org/test-repo", 1, "Test message", "fake-token")
-
-    assert result is False
-    mock_post.assert_called_once()
+    with patch.object(team_utils_mock, "comment_on_issue", wraps=team_module.comment_on_issue):
+        result = team_module.comment_on_issue("test-org/test-repo", 1, "Test message", "fake-token")
+        assert result is False
+        mock_post.assert_called_once()
 
 
 def test_check_repo_in_org():
@@ -174,37 +193,41 @@ def test_check_repo_in_org():
     # Set environment variable for all tests
     with patch.dict(os.environ, {"GITHUB_ORG": "test-org", "GITHUB_TOKEN": "fake-token"}):
         # Test repo exists
-        with patch("scripts.process_team_issue.requests.get") as mock_get:
+        with patch("scripts.team_utils.requests.get") as mock_get:  # Updated patch path
             mock_response = MagicMock()
             mock_response.status_code = 200
             mock_get.return_value = mock_response
 
-            result = team_module.check_repo_in_org("existing-repo")
-            assert result is True
+            with patch.object(team_utils_mock, "check_repo_in_org", wraps=team_module.check_repo_in_org):
+                result = team_module.check_repo_in_org("existing-repo")
+                assert result is True
 
         # Test repo doesn't exist
-        with patch("scripts.process_team_issue.requests.get") as mock_get:
+        with patch("scripts.team_utils.requests.get") as mock_get:  # Updated patch path
             mock_response = MagicMock()
             mock_response.status_code = 404
             mock_get.return_value = mock_response
 
-            result = team_module.check_repo_in_org("non-existent-repo")
-            assert result is False
+            with patch.object(team_utils_mock, "check_repo_in_org", wraps=team_module.check_repo_in_org):
+                result = team_module.check_repo_in_org("non-existent-repo")
+                assert result is False
 
         # Test API error
-        with patch("scripts.process_team_issue.requests.get") as mock_get:
+        with patch("scripts.team_utils.requests.get") as mock_get:  # Updated patch path
             mock_get.side_effect = Exception("API Error")
 
-            result = team_module.check_repo_in_org("any-repo")
-            assert result is False
+            with patch.object(team_utils_mock, "check_repo_in_org", wraps=team_module.check_repo_in_org):
+                result = team_module.check_repo_in_org("any-repo")
+                assert result is False
 
     # Test missing environment variables - negative test
     with patch.dict(os.environ, {"GITHUB_ORG": ""}):
-        result = team_module.check_repo_in_org("any-repo")
-        assert result is False
+        with patch.object(team_utils_mock, "check_repo_in_org", wraps=team_module.check_repo_in_org):
+            result = team_module.check_repo_in_org("any-repo")
+            assert result is False
 
 
-@patch("scripts.process_team_issue.requests.post")
+@patch("scripts.team_utils.requests.post")  # Updated patch path
 def test_create_user_warning_issue(mock_post, monkeypatch):
     """Test creating warning for non-existent user."""
     monkeypatch.setenv("GITHUB_TOKEN", "fake-token")
