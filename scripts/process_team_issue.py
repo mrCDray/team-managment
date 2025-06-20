@@ -1,6 +1,6 @@
 import os
-import re
 import sys
+import re
 import json
 import logging
 from collections import OrderedDict
@@ -158,7 +158,7 @@ def parse_member_entry(entry: str, issue_number: int = None) -> Tuple[Optional[s
     match = re.match(r"^- @([^\s(]+)\s*\(([^)]+)\)$", entry)
     if match:
         username = match.group(1)
-        teams = [team.strip() for team in match.group(2).split(",")]
+        teams = [team.strip().lower() for team in match.group(2).split(",")]  # Convert team names to lowercase
 
         # Validate user exists in the organization
         if not check_user_in_org(username):
@@ -180,14 +180,14 @@ def parse_child_team_entry(entry: str, parent_team: str = None) -> Tuple[Optiona
     entry = entry[2:]  # Remove the "- " prefix
     parts = entry.split(":", 2)
 
-    team_name = parts[0].strip()
+    team_name = parts[0].strip().lower()  # Convert team name to lowercase
     description = parts[1].strip() if len(parts) > 1 else None
     # Add default repository permission
     raw_permission = parts[2].strip() if len(parts) > 2 else "pull"
 
     # If parent_team is provided, ensure the team name has the proper prefix
     if parent_team:
-        team_name = ensure_team_name_prefix(parent_team, team_name)
+        team_name = ensure_team_name_prefix(parent_team.lower(), team_name)  # Use lowercase for prefixing
 
     # Map user-friendly permission names to GitHub API permissions using dict.get
     permission = permission_mapping.get(raw_permission, raw_permission)
@@ -208,6 +208,8 @@ def process_team_members(
     """Process team members and assign them to appropriate teams."""
     logger.info(f"Processing {len(members)} team members")
 
+    team_name_lower = team_name.lower()  # Lowercase version for comparisons
+
     # Initialize with existing members if available, otherwise empty list
     parent_members = list(config.get("members", [])) if config.get("members") else []
     child_team_members = {}
@@ -215,8 +217,9 @@ def process_team_members(
     # Initialize child team members with existing data
     for child in config.get("child_teams", []):
         child_name = child.get("name", "").replace("[team_name]", team_name)
+        child_name_lower = child_name.lower()  # Lowercase for dict keys
         if child.get("members"):
-            child_team_members[child_name] = list(child.get("members", []))
+            child_team_members[child_name_lower] = list(child.get("members", []))
 
     # Process new members to add
     for entry in members:
@@ -235,17 +238,18 @@ def process_team_members(
                     # Add to all child teams
                     for child in config.get("child_teams", []):
                         child_team_name = child["name"].replace("[team_name]", team_name)
-                        if child_team_name not in child_team_members:
-                            child_team_members[child_team_name] = []
-                        if username not in child_team_members[child_team_name]:
-                            child_team_members[child_team_name].append(username)
+                        child_team_name_lower = child_team_name.lower()  # Lowercase for dict keys
+                        if child_team_name_lower not in child_team_members:
+                            child_team_members[child_team_name_lower] = []
+                        if username not in child_team_members[child_team_name_lower]:
+                            child_team_members[child_team_name_lower].append(username)
                 else:
                     logger.debug(f"Adding {username} to parent team and specified child teams: {teams}")
                     parent_members.append(username)
                     # Add to specific child teams
                     for team_suffix in teams:
                         # Handle both prefixed and non-prefixed team names
-                        child_team_name = ensure_team_name_prefix(team_name, team_suffix)
+                        child_team_name = ensure_team_name_prefix(team_name_lower, team_suffix)
                         if child_team_name not in child_team_members:
                             child_team_members[child_team_name] = []
                         if username not in child_team_members[child_team_name]:
@@ -257,15 +261,16 @@ def process_team_members(
                         # Add to all child teams
                         for child in config.get("child_teams", []):
                             child_team_name = child["name"].replace("[team_name]", team_name)
-                            if child_team_name not in child_team_members:
-                                child_team_members[child_team_name] = []
-                            if username not in child_team_members[child_team_name]:
-                                child_team_members[child_team_name].append(username)
+                            child_team_name_lower = child_team_name.lower()  # Lowercase for dict keys
+                            if child_team_name_lower not in child_team_members:
+                                child_team_members[child_team_name_lower] = []
+                            if username not in child_team_members[child_team_name_lower]:
+                                child_team_members[child_team_name_lower].append(username)
                     else:
                         # Add to specific child teams
                         for team_suffix in teams:
                             # Handle both prefixed and non-prefixed team names
-                            child_team_name = ensure_team_name_prefix(team_name, team_suffix)
+                            child_team_name = ensure_team_name_prefix(team_name_lower, team_suffix)
                             if child_team_name not in child_team_members:
                                 child_team_members[child_team_name] = []
                             if username not in child_team_members[child_team_name]:
@@ -277,8 +282,9 @@ def process_team_members(
     # Update child teams with preserved members
     for child in config.get("child_teams", []):
         child_name = child["name"].replace("[team_name]", team_name)
-        if child_name in child_team_members:
-            child["members"] = child_team_members[child_name]
+        child_name_lower = child_name.lower()  # Lowercase for lookup
+        if child_name_lower in child_team_members:
+            child["members"] = child_team_members[child_name_lower]
             logger.debug(f"Updated members for child team {child_name}")
 
     return config
@@ -290,6 +296,8 @@ def process_child_teams(
     """Process child teams to add or update them in the configuration."""
     logger.info(f"Processing {len(child_teams_entries)} child teams")
 
+    team_name_lower = team_name.lower()  # Lowercase version for comparisons
+
     # Initialize child teams list if it doesn't exist
     if "child_teams" not in config:
         config["child_teams"] = []
@@ -298,31 +306,34 @@ def process_child_teams(
     existing_child_teams = {}
     if action in ["update", "remove"]:
         for idx, child in enumerate(config["child_teams"]):
-            existing_child_teams[child["name"]] = idx
+            existing_child_teams[child["name"].lower()] = idx  # Use lowercase for lookup
 
     # Process each child team entry
     for entry in child_teams_entries:
-        child_team_name, description, permission = parse_child_team_entry(entry, team_name)
+        child_team_name, description, permission = parse_child_team_entry(entry, team_name_lower)
         if not child_team_name:
             logger.warning(f"Invalid child team entry: {entry}")
             continue
 
+        # Store original case for display but use lowercase for comparison
+        child_team_name_lower = child_team_name.lower()
+
         if action == "remove":
             # Remove child team if it exists
-            if child_team_name in existing_child_teams:
-                idx = existing_child_teams[child_team_name]
+            if child_team_name_lower in existing_child_teams:
+                idx = existing_child_teams[child_team_name_lower]
                 logger.info(f"Removing child team: {child_team_name}")
                 config["child_teams"].pop(idx)
                 # Update indices after removal
                 for name, index in existing_child_teams.items():
                     if index > idx:
                         existing_child_teams[name] = index - 1
-                existing_child_teams.pop(child_team_name)
+                existing_child_teams.pop(child_team_name_lower)
         else:
             # Add or update child team
-            if child_team_name in existing_child_teams:
+            if child_team_name_lower in existing_child_teams:
                 # Update existing child team - only update description and permission if provided
-                idx = existing_child_teams[child_team_name]
+                idx = existing_child_teams[child_team_name_lower]
                 if description:  # Only update description if provided
                     config["child_teams"][idx]["description"] = description
                 # Always ensure repository_permissions is set
@@ -332,7 +343,7 @@ def process_child_teams(
                 # Add new child team - preserve structure similar to existing teams
                 parent_repos = config.get("repositories", []) or []
                 child_team = {
-                    "name": child_team_name,
+                    "name": child_team_name,  # Keep original case for display
                     "description": description,
                     "repository_permissions": permission,  # Add repository permission
                     "members": [],
@@ -500,11 +511,47 @@ def update_team_config(
     return config, None
 
 
+def find_team_directory(team_name: str) -> Optional[str]:
+    """
+    Find team directory regardless of case sensitivity.
+    Returns the actual directory path if found, None otherwise.
+    """
+    # First check exact match
+    team_dir = f"teams/{team_name}"
+    if os.path.exists(team_dir):
+        return team_dir
+
+    # Then check lowercase
+    team_dir_lower = f"teams/{team_name.lower()}"
+    if os.path.exists(team_dir_lower):
+        return team_dir_lower
+
+    # If not found, search all team directories case-insensitively
+    try:
+        if os.path.exists("teams"):
+            for dir_name in os.listdir("teams"):
+                if dir_name.lower() == team_name.lower():
+                    logger.debug(f"Found team directory with different case: {dir_name}")
+                    return f"teams/{dir_name}"
+    except Exception as e:
+        logger.error(f"Error searching for team directory: {str(e)}")
+
+    return None
+
+
 def load_existing_config(team_file: str, team_name: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """Load existing team configuration file."""
+    # Check if the file exists with exact case
     if not os.path.exists(team_file):
-        logger.error(f"Team configuration file {team_file} does not exist")
-        return None, f"Team configuration for {team_name} does not exist."
+        # Try to find team directory regardless of case
+        team_dir = find_team_directory(team_name)
+        if team_dir:
+            team_file = f"{team_dir}/teams.yml"
+            logger.info(f"Found team file with different case: {team_file}")
+
+        else:
+            logger.error(f"Team configuration for {team_name} not found (case-insensitive search)")
+            return None, f"Team configuration for {team_name} does not exist."
 
     try:
         with open(team_file, "r", encoding="utf-8") as f:
@@ -527,29 +574,21 @@ def remove_team_items(
     team_file = f"{team_dir}/teams.yml"
     logger.info(f"Removing items from team '{team_name}'")
 
-    if not os.path.exists(team_file):
-        logger.error(f"Team configuration file {team_file} does not exist")
-        return None, f"Team configuration for {team_name} does not exist."
+    team_name_lower = team_name.lower()  # Lowercase version for comparisons
 
-    try:
-        with open(team_file, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
-
-        if not config or "teams" not in config:
-            logger.error(f"Invalid team config format in {team_file}")
-            return None, f"Invalid team configuration format in {team_file}"
-    except Exception as e:
-        logger.error(f"Failed to load team configuration: {str(e)}")
-        return None, f"Failed to load team configuration: {str(e)}"
+    # Load existing configuration
+    config, error = load_existing_config(team_file, team_name)
+    if error:
+        return None, error
 
     # Process child teams to remove
     if child_teams:
-        config["teams"] = process_child_teams(config["teams"], child_teams, team_name, "remove")
+        config["teams"] = process_child_teams(config["teams"], child_teams, team_name_lower, "remove")
 
     # Process members to remove
     if members:
         logger.info(f"Processing {len(members)} members for removal")
-        if config["teams"].get("members"):  # FIXED: Correctly check for members in teams structure
+        if config["teams"].get("members"):
             parent_members = set(config["teams"]["members"])
             initial_count = len(parent_members)
             child_team_members = {}
@@ -557,7 +596,8 @@ def remove_team_items(
             # Initialize child_team_members for ALL child teams, even if they have no members
             for child in config["teams"].get("child_teams", []):
                 child_name = child["name"]
-                child_team_members[child_name] = set(child.get("members", []))
+                child_name_lower = child_name.lower()  # Lowercase for dict keys
+                child_team_members[child_name_lower] = set(child.get("members", []))
 
             for entry in members:
                 username, teams = parse_member_entry(entry, issue_number)
@@ -574,12 +614,13 @@ def remove_team_items(
                         # Remove from specific child teams
                         logger.debug(f"Removing {username} from specific child teams: {teams}")
                         for team_suffix in teams:
-                            child_team_name = f"{team_name}-{team_suffix}"
+                            child_team_name = ensure_team_name_prefix(team_name_lower, team_suffix)
+                            child_team_name_lower = child_team_name.lower()  # Lowercase for lookup
                             if (
-                                child_team_name in child_team_members
-                                and username in child_team_members[child_team_name]
+                                child_team_name_lower in child_team_members
+                                and username in child_team_members[child_team_name_lower]
                             ):
-                                child_team_members[child_team_name].remove(username)
+                                child_team_members[child_team_name_lower].remove(username)
                                 logger.debug(f"Removed {username} from child team {child_team_name}")
                 else:
                     logger.warning(f"Member {username} not found in parent team or parsing failed")
@@ -591,8 +632,9 @@ def remove_team_items(
             # Ensure all child teams get their member lists updated
             for child in config["teams"].get("child_teams", []):
                 child_name = child["name"]
-                if child_name in child_team_members:
-                    child["members"] = list(child_team_members[child_name])
+                child_name_lower = child_name.lower()  # Lowercase for lookup
+                if child_name_lower in child_team_members:
+                    child["members"] = list(child_team_members[child_name_lower])
                     logger.debug(f"Updated members list for {child_name}: {child['members']}")
 
     # Process repositories to remove
@@ -737,14 +779,14 @@ def save_team_config(team_file: str, config: Dict[str, Any]) -> bool:
         return False
 
 
-def validate_team_existence(
-    team_file: str, team_name: str, action: str, repo: str, issue_number: int, token: str
-) -> bool:
+def validate_team_existence(team_name: str, action: str, repo: str, issue_number: int, token: str) -> bool:
     """
     Validate if the team exists based on the requested action.
     Returns True if validation passes, otherwise handles the error and returns False.
     """
-    team_exists = os.path.exists(team_file)
+    # Find team directory regardless of case
+    team_dir = find_team_directory(team_name)
+    team_exists = team_dir is not None
 
     if action == "create" and team_exists:
         error_message = f"⚠️ Team configuration for {team_name} already exists. Use 'update' action instead."
@@ -770,6 +812,15 @@ def execute_team_action(
     Execute the requested team action and return the results.
     Returns a tuple of (error_message, config, response_message).
     """
+    # Use lowercase team name for file operations but preserve original for display
+    team_name_lower = team_name.lower()
+    team_dir_lower = f"teams/{team_name_lower}"
+    team_file_lower = f"{team_dir_lower}/teams.yml"
+
+    # Check both original case and lowercase paths
+    if not os.path.exists(team_file) and os.path.exists(team_file_lower):
+        team_file = team_file_lower
+
     error_message = None
     config = None
     response_message = None
@@ -811,14 +862,18 @@ def sync_team_with_github(team_name: str, token: str, org: str) -> Tuple[bool, s
     """Sync a specific team with GitHub after configuration changes."""
     logger.info(f"Syncing team {team_name} with GitHub")
 
-    # Load only the specific team configuration
-    team_configs = []
-    team_file = f"teams/{team_name}/teams.yml"
+    # Find team directory regardless of case
+    team_dir = find_team_directory(team_name)
+    if not team_dir:
+        error_msg = f"Team configuration directory for {team_name} not found"
 
-    if not os.path.exists(team_file):
-        error_msg = f"Team configuration file {team_file} not found"
         logger.error(error_msg)
         return False, error_msg
+
+    team_file = f"{team_dir}/teams.yml"
+
+    # Load only the specific team configuration
+    team_configs = []
 
     try:
         with open(team_file, "r", encoding="utf-8") as f:
@@ -870,11 +925,23 @@ def process_team_issue() -> None:
 
         team_name = issue_data["team_name"]
         action = issue_data["action"]
-        team_dir = f"teams/{team_name}"
+
+        # Determine the proper team directory, respecting case if found
+        team_dir = find_team_directory(team_name)
+        if action == "create" and not team_dir:
+            # For create action, use the exact case from the issue if no existing directory
+            team_dir = f"teams/{team_name}"
+        elif team_dir:
+            # For other actions, use the found directory with its original case
+            pass
+        else:
+            # Default fallback to exact case
+            team_dir = f"teams/{team_name}"
+
         team_file = f"{team_dir}/teams.yml"
 
         # Validate team existence based on action
-        if not validate_team_existence(team_file, team_name, action, repo, issue_number, token):
+        if not validate_team_existence(team_name, action, repo, issue_number, token):
             sys.exit(1)
 
         # Execute the requested action
